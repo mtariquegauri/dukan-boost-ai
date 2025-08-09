@@ -14,15 +14,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci || npm i
 
       - name: Build web app
         run: npm run build
-
-      - name: Add Android platform
-        run: npx cap add android
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -35,17 +33,38 @@ jobs:
         with:
           api-level: 34
           build-tools: '34.0.0'
+          components: |
+            platforms;android-34
 
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses
 
-      - name: Copy web to native
-        run: npx cap copy android
+      - name: Add Android platform (if needed)
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+
+      - name: Copy and sync web to native
+        run: npx cap sync android
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x android/gradlew || true
 
       - name: Assemble Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug
+          ./gradlew --no-daemon assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
